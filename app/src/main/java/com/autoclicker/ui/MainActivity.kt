@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
