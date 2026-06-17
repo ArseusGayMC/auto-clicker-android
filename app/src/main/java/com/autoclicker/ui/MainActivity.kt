@@ -1,9 +1,9 @@
 package com.autoclicker.ui
 
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
@@ -16,9 +16,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.autoclicker.R
 import com.autoclicker.service.AutoClickerAccessibilityService
+import com.autoclicker.service.FloatingButtonService
 import com.autoclicker.viewmodel.AutoClickerViewModel
 import kotlinx.coroutines.launch
-import android.os.Bundle
 
 class MainActivity : AppCompatActivity() {
 
@@ -45,15 +45,15 @@ class MainActivity : AppCompatActivity() {
 
         startButton.setOnClickListener {
             if (hasRequiredPermissions()) {
-                viewModel.startFloatingButton()
+                startFloatingButtonService()
                 Toast.makeText(this, "Yüzen buton başlatıldı", Toast.LENGTH_SHORT).show()
             } else {
-                requestPermissions()
+                showPermissionDialog()
             }
         }
 
         stopButton.setOnClickListener {
-            viewModel.stopFloatingButton()
+            stopFloatingButtonService()
             Toast.makeText(this, "Yüzen buton durduruldu", Toast.LENGTH_SHORT).show()
         }
 
@@ -79,16 +79,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions() {
         if (!hasRequiredPermissions()) {
-            requestPermissions()
+            showPermissionDialog()
         }
     }
 
     private fun hasRequiredPermissions(): Boolean {
+        // Check SYSTEM_ALERT_WINDOW permission (Android 6+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "SYSTEM_ALERT_WINDOW permission not granted")
                 return false
             }
         }
+        
+        // Check if Accessibility Service is enabled
         return isAccessibilityServiceEnabled()
     }
 
@@ -98,18 +102,44 @@ class MainActivity : AppCompatActivity() {
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
 
-        return enabledServices.contains(
-            "${packageName}/${AutoClickerAccessibilityService::class.java.name}"
-        )
+        val serviceName = "${packageName}/${AutoClickerAccessibilityService::class.java.name}"
+        val enabled = enabledServices.contains(serviceName)
+        
+        if (!enabled) {
+            Log.w(TAG, "Accessibility Service not enabled")
+        }
+        
+        return enabled
     }
 
-    private fun requestPermissions() {
+    private fun startFloatingButtonService() {
+        val intent = Intent(this, FloatingButtonService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                @Suppress("DEPRECATION")
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting FloatingButtonService", e)
+            Toast.makeText(this, "Hata: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopFloatingButtonService() {
+        val intent = Intent(this, FloatingButtonService::class.java)
+        stopService(intent)
+    }
+
+    private fun showPermissionDialog() {
         AlertDialog.Builder(this)
             .setTitle("İzin Gereklidir")
-            .setMessage("Accessibility ve Overlay izinleri gereklidir.\n\n" +
-                    "1. Overlay İzni\n" +
-                    "2. Accessibility Service'i etkinleştir")
-            .setPositiveButton("Ayarları Aç") { _, _ ->
+            .setMessage("Uygulamanın çalışabilmesi için:\n\n" +
+                    "1. Overlay İzni (Di\u011fer uygulamalar\u0131n üzerine görüntülenme)\n" +
+                    "2. Accessibility Service (Eri\u015flebilirlik Hizmeti)\n\n" +
+                    "Lütfen ayarlardan bu izinleri verin.")
+            .setPositiveButton("Ayarlar") { _, _ ->
                 openAccessibilitySettings()
             }
             .setNegativeButton("İptal", null)
@@ -117,6 +147,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openAccessibilitySettings() {
-        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        try {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening accessibility settings", e)
+            Toast.makeText(this, "Ayarlar açılamadı", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }

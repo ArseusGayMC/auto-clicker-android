@@ -39,13 +39,10 @@ class FloatingButtonService : Service() {
             )
         }
 
+        // Android 11+ compatible WindowManager.LayoutParams
         params = WindowManager.LayoutParams().apply {
-            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            }
+            // Always use TYPE_APPLICATION_OVERLAY for Android 8+
+            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
@@ -56,9 +53,13 @@ class FloatingButtonService : Service() {
             y = 200
         }
 
-        windowManager.addView(floatingButton, params)
-        setupFloatingButtonListeners()
-        Log.d(TAG, "Floating button created")
+        try {
+            windowManager.addView(floatingButton, params)
+            setupFloatingButtonListeners()
+            Log.d(TAG, "Floating button created successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating floating button", e)
+        }
     }
 
     private fun setupFloatingButtonListeners() {
@@ -71,12 +72,17 @@ class FloatingButtonService : Service() {
                     lastX = event.rawX
                     lastY = event.rawY
 
+                    // Make button touchable
                     params?.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    windowManager.updateViewLayout(floatingButton, params)
+                    try {
+                        windowManager.updateViewLayout(floatingButton, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error updating layout on ACTION_DOWN", e)
+                    }
 
                     startClickingAtButton()
-                    Log.d(TAG, "Button pressed")
+                    Log.d(TAG, "Button pressed at (${event.rawX}, ${event.rawY})")
                     true
                 }
 
@@ -88,7 +94,11 @@ class FloatingButtonService : Service() {
                         params?.x = params?.x?.plus(diffX) ?: 0
                         params?.y = params?.y?.plus(diffY) ?: 0
 
-                        windowManager.updateViewLayout(floatingButton, params)
+                        try {
+                            windowManager.updateViewLayout(floatingButton, params)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error updating layout on ACTION_MOVE", e)
+                        }
 
                         lastX = event.rawX
                         lastY = event.rawY
@@ -101,10 +111,15 @@ class FloatingButtonService : Service() {
 
                     stopClicking()
 
+                    // Make button non-touchable again
                     params?.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    windowManager.updateViewLayout(floatingButton, params)
+                    try {
+                        windowManager.updateViewLayout(floatingButton, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error updating layout on ACTION_UP", e)
+                    }
 
                     Log.d(TAG, "Button released")
                     true
@@ -124,20 +139,38 @@ class FloatingButtonService : Service() {
             putExtra(AutoClickerAccessibilityService.EXTRA_X, x.toFloat())
             putExtra(AutoClickerAccessibilityService.EXTRA_Y, y.toFloat())
         }
-        startService(intent)
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                @Suppress("DEPRECATION")
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting clicking service", e)
+        }
     }
 
     private fun stopClicking() {
         val intent = Intent(this, AutoClickerAccessibilityService::class.java).apply {
             action = AutoClickerAccessibilityService.ACTION_STOP_CLICKING
         }
-        startService(intent)
+        try {
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping clicking service", e)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        floatingButton?.let { windowManager.removeView(it) }
+        try {
+            floatingButton?.let { windowManager.removeView(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing floating button", e)
+        }
         super.onDestroy()
         Log.d(TAG, "Floating button destroyed")
     }
