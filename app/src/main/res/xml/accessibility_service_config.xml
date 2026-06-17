@@ -3,8 +3,9 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
     android:accessibilityEventTypes="typeAllMask"
-    android:accessibilityFlags="flagDefault|flagReportViewIds"
+    android:accessibilityFlags="flagDefault|flagReportViewIds|flagRequestFilterKeyEvents"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
+    android:notificationTimeout="0"
     android:settingsActivity="com.autoclicker.ui.MainActivity" />
