@@ -27,13 +27,14 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Generate Gradle Wrapper (if missing)
+      - name: Generate Gradle Wrapper
         run: |
           if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version=8.9
+            GRADLE_VERSION=8.5
+            wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -O gradle.zip
+            unzip -q gradle.zip
+            "./gradle-${GRADLE_VERSION}/bin/gradle" wrapper --gradle-version=${GRADLE_VERSION}
+            rm -rf gradle.zip "gradle-${GRADLE_VERSION}"
           fi
           chmod +x gradlew
 
