@@ -65,7 +65,7 @@ class AutoClickerAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         _instance = this
-        Log.d(TAG, "Bağlandı — canPerformGestures=${serviceInfo?.canPerformGestures()}")
+        Log.d(TAG, "Bağlandı — servis aktif")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit   // Kullanılmıyor
