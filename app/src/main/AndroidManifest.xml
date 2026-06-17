@@ -3,19 +3,23 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.autoclicker">
 
-    <!-- Accessibility Service Permission -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
-    
-    <!-- Overlay Permission (for Floating Button) -->
+    <!-- Overlay permission — required for WindowManager TYPE_APPLICATION_OVERLAY -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
-    <!-- Vibration Permission (Optional) -->
+
+    <!-- Foreground service — required to keep FloatingButtonService alive in background -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Android 14+ requires declaring the foreground service type -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Android 13+ notification permission (requested at runtime in MainActivity) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Accessibility service binding -->
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+
+    <!-- Optional: haptic feedback on click -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    
-    <!-- Foreground Service Permission (Android 12+) -->
-    <uses-permission 
-        android:name="android.permission.FOREGROUND_SERVICE"
-        tools:node="remove" />
 
     <application
         android:allowBackup="true"
@@ -26,7 +30,7 @@
         android:theme="@style/Theme.AutoClicker"
         android:usesCleartextTraffic="false">
 
-        <!-- MainActivity -->
+        <!-- Entry point -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -37,7 +41,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Accessibility Service -->
+        <!--
+            AutoClickerAccessibilityService
+            • Bound by the system when the user enables it in Settings > Accessibility.
+            • canPerformGestures="true" in xml config lets dispatchGesture() work.
+        -->
         <service
             android:name=".service.AutoClickerAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -51,9 +59,13 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Floating Button Service -->
+        <!--
+            FloatingButtonService — foreground service that draws the overlay button.
+            foregroundServiceType="specialUse" required on Android 14 (API 34).
+        -->
         <service
             android:name=".service.FloatingButtonService"
+            android:foregroundServiceType="specialUse"
             android:exported="false" />
 
     </application>
