@@ -1,11 +1,9 @@
 <resources>
     <string name="app_name">Auto Clicker</string>
-    <string name="floating_button_status">Yüzen Buton Kontrolü</string>
     <string name="btn_start">Başlat</string>
     <string name="btn_stop">Durdur</string>
     <string name="interval_label">Tıklama Aralığı (ms):</string>
     <string name="interval_default">Tıklama Aralığı: 100ms</string>
-    <string name="permissions_info">Gerekli İzinler</string>
-    <string name="permissions_description">1. Overlay İzni: Diğer uygulamaların üzerine görüntülenmesine izin ver\n\n2. Accessibility Service: Ayarlar -&gt; Erişilebilirlik -&gt; Hizmetler -&gt; Auto Clicker etkinleştir\n\n3. Kullanım: Uygulamayı başlattıktan sonra butona basılı tuttuğunuzda tıklama başlar, parmağınızı çektiğinde durur.</string>
-    <string name="accessibility_service_description">Auto Clicker - Otomatik tıklama hizmeti</string>
+    <string name="permissions_description">1. Overlay İzni: Uygulamanın diğer uygulamaların üzerinde yüzen buton göstermesi için gereklidir.\n\n2. Accessibility Servisi: Ayarlar &gt; Erişilebilirlik &gt; Hizmetler &gt; Auto Clicker kısmından etkinleştirin.\n\n3. Kullanım:\n   • Başlat butonuna basın → yüzen mor buton ekranda görünür.\n   • Yüzen butona basılı tutun → tıklama başlar.\n   • Parmağınızı çekin → tıklama durur.\n   • Butonu sürükleyerek istediğiniz konuma taşıyın.\n   • Tıklama aralığını kaydırma çubuğuyla ayarlayın (50ms – 500ms).</string>
+    <string name="accessibility_service_description">Auto Clicker – Ekrana otomatik dokunma hizmeti. Yüzen butona basılı tuttuğunuzda seçilen noktaya sürekli dokunur.</string>
 </resources>
