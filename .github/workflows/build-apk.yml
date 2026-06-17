@@ -27,41 +27,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle Wrapper
+      - name: Install Gradle 8.5
         run: |
-          if [ ! -f gradlew ]; then
-            mkdir -p gradle/wrapper
-
-            # Write the wrapper properties pointing to official Gradle distribution
-            cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-networkTimeout=10000
-validateDistributionUrl=true
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-EOF
-
-            # Download the official gradle-wrapper.jar
-            curl -sL \
-              "https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar" \
-              -o gradle/wrapper/gradle-wrapper.jar
-
-            # Download the official gradlew script
-            curl -sL \
-              "https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradlew" \
-              -o gradlew
-          fi
-          chmod +x gradlew
-          echo "--- gradle-wrapper.properties ---"
-          cat gradle/wrapper/gradle-wrapper.properties
+          wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/
+          echo "/opt/gradle-8.5/bin" >> $GITHUB_PATH
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon --build-cache
+        run: gradle assembleRelease --no-daemon --build-cache
 
       - name: Upload Debug APK
         if: success()
