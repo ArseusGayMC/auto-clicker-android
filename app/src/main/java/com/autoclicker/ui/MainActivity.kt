@@ -1,162 +1,175 @@
 package com.autoclicker.ui
 
-import android.content.Context
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.view.accessibility.AccessibilityManager
+import android.util.Log
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
-import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import com.autoclicker.R
 import com.autoclicker.service.AutoClickerAccessibilityService
 import com.autoclicker.service.FloatingButtonService
 import com.autoclicker.viewmodel.AutoClickerViewModel
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
+    private companion object {
+        const val TAG = "MainActivity"
+    }
+
     private lateinit var viewModel: AutoClickerViewModel
-    private lateinit var accessibilityManager: AccessibilityManager
+
+    // Overlay izni — Settings.ACTION_MANAGE_OVERLAY_PERMISSION dönüşünde durumu yenile
+    private val overlayPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            updatePermissionStatus()
+        }
+
+    // Android 13+ bildirim izni
+    private val notifPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            granted -> Log.d(TAG, "Bildirim izni: $granted")
+        }
+
+    /* ─── Lifecycle ──────────────────────────────────────────────────── */
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        viewModel = ViewModelProvider(this).get(AutoClickerViewModel::class.java)
-        accessibilityManager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        viewModel = ViewModelProvider(this)[AutoClickerViewModel::class.java]
 
+        requestNotificationPermissionIfNeeded()
         setupUI()
-        collectSettings()
-        checkPermissions()
+        updatePermissionStatus()
     }
 
-    private fun setupUI() {
-        val startButton = findViewById<Button>(R.id.btn_start)
-        val stopButton = findViewById<Button>(R.id.btn_stop)
-        val intervalSeekBar = findViewById<SeekBar>(R.id.seekbar_interval)
-        val intervalText = findViewById<TextView>(R.id.tv_interval)
+    override fun onResume() {
+        super.onResume()
+        // Accessibility ayarlarından döndükten sonra durumu güncelle
+        updatePermissionStatus()
+    }
 
-        startButton.setOnClickListener {
-            if (hasRequiredPermissions()) {
-                startFloatingButtonService()
-                Toast.makeText(this, "Yüzen buton başlatıldı", Toast.LENGTH_SHORT).show()
-            } else {
-                showPermissionDialog()
+    /* ─── UI kurulumu ────────────────────────────────────────────────── */
+
+    private fun setupUI() {
+        val btnStart          = findViewById<Button>(R.id.btn_start)
+        val btnStop           = findViewById<Button>(R.id.btn_stop)
+        val seekBar           = findViewById<SeekBar>(R.id.seekbar_interval)
+        val tvInterval        = findViewById<TextView>(R.id.tv_interval)
+        val btnOverlay        = findViewById<Button>(R.id.btn_grant_overlay)
+        val btnAccessibility  = findViewById<Button>(R.id.btn_grant_accessibility)
+
+        // Başlat — her iki izin de verilmişse floating button servisini başlat
+        btnStart.setOnClickListener {
+            when {
+                !hasOverlayPermission() -> {
+                    Toast.makeText(this, "Önce Overlay iznini verin", Toast.LENGTH_SHORT).show()
+                    requestOverlayPermission()
+                }
+                !isAccessibilityEnabled() -> {
+                    Toast.makeText(this, "Önce Accessibility servisini etkinleştirin", Toast.LENGTH_LONG).show()
+                    openAccessibilitySettings()
+                }
+                else -> {
+                    viewModel.startFloatingButton()
+                    Toast.makeText(this, "Yüzen buton başlatıldı ✓", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
-        stopButton.setOnClickListener {
-            stopFloatingButtonService()
+        // Durdur
+        btnStop.setOnClickListener {
+            viewModel.stopFloatingButton()
             Toast.makeText(this, "Yüzen buton durduruldu", Toast.LENGTH_SHORT).show()
         }
 
-        intervalSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+        // İzin butonları
+        btnOverlay.setOnClickListener { requestOverlayPermission() }
+        btnAccessibility.setOnClickListener { openAccessibilitySettings() }
+
+        // Tıklama aralığı — 50ms … 500ms
+        seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 val interval = (progress + 50).toLong()
-                intervalText.text = "Tıklama Aralığı: ${interval}ms"
+                tvInterval.text = "Tıklama Aralığı: ${interval}ms"
                 viewModel.updateClickInterval(interval)
             }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
     }
 
-    private fun collectSettings() {
-        lifecycleScope.launch {
-            viewModel.settings.collect { settings ->
-                // UI update if needed
-            }
-        }
-    }
+    /* ─── İzin kontrolü ──────────────────────────────────────────────── */
 
-    private fun checkPermissions() {
-        if (!hasRequiredPermissions()) {
-            showPermissionDialog()
-        }
-    }
+    private fun hasOverlayPermission(): Boolean =
+        Settings.canDrawOverlays(this)
 
-    private fun hasRequiredPermissions(): Boolean {
-        // Check SYSTEM_ALERT_WINDOW permission (Android 6+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                Log.w(TAG, "SYSTEM_ALERT_WINDOW permission not granted")
-                return false
-            }
-        }
-        
-        // Check if Accessibility Service is enabled
-        return isAccessibilityServiceEnabled()
-    }
-
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val enabledServices = Settings.Secure.getString(
+    private fun isAccessibilityEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
-
-        val serviceName = "${packageName}/${AutoClickerAccessibilityService::class.java.name}"
-        val enabled = enabledServices.contains(serviceName)
-        
-        if (!enabled) {
-            Log.w(TAG, "Accessibility Service not enabled")
-        }
-        
-        return enabled
+        val svcName = "$packageName/${AutoClickerAccessibilityService::class.java.name}"
+        return enabled.contains(svcName)
     }
 
-    private fun startFloatingButtonService() {
-        val intent = Intent(this, FloatingButtonService::class.java)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                @Suppress("DEPRECATION")
-                startService(intent)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error starting FloatingButtonService", e)
-            Toast.makeText(this, "Hata: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun stopFloatingButtonService() {
-        val intent = Intent(this, FloatingButtonService::class.java)
-        stopService(intent)
-    }
-
-    private fun showPermissionDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("İzin Gereklidir")
-            .setMessage("Uygulamanın çalışabilmesi için:\n\n" +
-                    "1. Overlay İzni (Di\u011fer uygulamalar\u0131n üzerine görüntülenme)\n" +
-                    "2. Accessibility Service (Eri\u015flebilirlik Hizmeti)\n\n" +
-                    "Lütfen ayarlardan bu izinleri verin.")
-            .setPositiveButton("Ayarlar") { _, _ ->
-                openAccessibilitySettings()
-            }
-            .setNegativeButton("İptal", null)
-            .show()
+    private fun requestOverlayPermission() {
+        overlayPermissionLauncher.launch(
+            Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+        )
     }
 
     private fun openAccessibilitySettings() {
         try {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         } catch (e: Exception) {
-            Log.e(TAG, "Error opening accessibility settings", e)
+            Log.e(TAG, "Accessibility ayarları açılamadı", e)
             Toast.makeText(this, "Ayarlar açılamadı", Toast.LENGTH_SHORT).show()
         }
     }
 
-    companion object {
-        private const val TAG = "MainActivity"
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    /** İzin durumunu ekrana yansıt ve Başlat butonunu etkinleştir/devre dışı bırak. */
+    private fun updatePermissionStatus() {
+        val tvOverlay       = findViewById<TextView>(R.id.tv_overlay_status)
+        val tvAccessibility = findViewById<TextView>(R.id.tv_accessibility_status)
+        val btnStart        = findViewById<Button>(R.id.btn_start)
+
+        val overlayOk        = hasOverlayPermission()
+        val accessibilityOk  = isAccessibilityEnabled()
+
+        tvOverlay.text =
+            if (overlayOk) "✅ Overlay izni verildi"
+            else           "❌ Overlay izni gerekli"
+
+        tvAccessibility.text =
+            if (accessibilityOk) "✅ Accessibility Servisi aktif"
+            else                 "❌ Accessibility Servisi gerekli"
+
+        // Her iki izin de varsa Başlat butonu aktif
+        btnStart.isEnabled = overlayOk && accessibilityOk
+        btnStart.alpha = if (btnStart.isEnabled) 1f else 0.5f
     }
 }
